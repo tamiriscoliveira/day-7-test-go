@@ -1,0 +1,43 @@
+name: Testes e Cobertura - Go
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      COVERAGE_THRESHOLD: 80
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configura Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Verifica dependências
+        run: go mod tidy
+
+      - name: Executa testes com cobertura
+        run: |
+          go test -coverprofile=coverage.out ./...
+          go tool cover -func=coverage.out
+
+      - name: Valida cobertura mínima
+        id: check_cov
+        run: |
+          COV_RAW=$(go tool cover -func=coverage.out | grep total | awk '{print substr($3, 1, length($3)-1)}')
+          echo "Cobertura total: $COV_RAW%"
+          echo "coverage_raw=$COV_RAW" >> "$GITHUB_OUTPUT"
+
+          FAIL=$(echo "$COV_RAW < $COVERAGE_THRESHOLD" | bc -l)
+          if [ "$FAIL" -eq 1 ]; then
+            echo "::error ::Cobertura insuficiente. Esperado: ${COVERAGE_THRESHOLD}% - Atingido: ${COV_RAW}%"
+            exit 1
+          fi
